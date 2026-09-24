@@ -1,0 +1,12 @@
+blackduck-mcp/
+.git/
+.github/
+*.dxt
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+docs/
+img/
