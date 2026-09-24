@@ -2,9 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install the MCP server from the repo root.
+# Install the MCP server from the repo root. Pin mcp<2: the app uses the
+# v1 FastMCP API, broken by the 2.x FastMCP->MCPServer rename.
 COPY . .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir . "mcp<2"
 
 EXPOSE 8000
 
