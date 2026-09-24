@@ -49,14 +49,20 @@ spec:
                   name: coverity-auth
                   key: COVAUTHKEY
             # Required - Coverity server
-            - name: PROXY_HOST
+            - name: COVERITY_HOST
               value: "coverity.shb.com.vn"
-            - name: PROXY_PORT
+            - name: COVERITY_PORT
               value: "8443"
             - name: COVERITY_SSL
               value: "True"
             - name: NODE_EXTRA_CA_CERTS
               value: /etc/9router-ca/shb-ca.cer
+            - name: PROXY_HOST
+              value: ""
+            - name: PROXY_PORT
+              value: ""
+            - name: FASTMCP_TRANSPORT_SECURITY__ENABLE_DNS_REBINDING_PROTECTION
+              value: "false"
             # Optional - corporate proxy
             #- name: PROXY_HOST
             #  value: "bypsproxy.daikin.co.jp"

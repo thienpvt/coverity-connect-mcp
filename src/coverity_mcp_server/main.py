@@ -64,9 +64,9 @@ def initialize_client() -> CoverityClient:
     username = os.getenv('COVAUTHUSER', '').strip()
     password = os.getenv('COVAUTHKEY', '').strip()
     
-    # プロキシ設定を取得（.envファイルから）
-    proxy_host = os.getenv('PROXY_HOST', 'bypsproxy.daikin.co.jp').strip()
-    proxy_port = os.getenv('PROXY_PORT', '3128').strip()
+    # プロキシ設定を取得（.envファイルから）。未設定ならプロキシを使わない。
+    proxy_host = os.getenv('PROXY_HOST', '').strip()
+    proxy_port = os.getenv('PROXY_PORT', '').strip()
     
     # プロキシを環境変数に設定（aiohttpが使用）
     if proxy_host and proxy_port:
@@ -128,16 +128,15 @@ def initialize_client() -> CoverityClient:
         if not host:
             raise ValueError(f"Cannot extract hostname from URL: {coverity_url}")
         
-        # ポート番号の抽出（テスト成功時と同じ設定）
+        # ポート番号の抽出（URL指定が優先。なければ環境変数 COVERITY_PORT、最後に標準）
         if parsed_url.port:
             port = parsed_url.port
-        elif parsed_url.scheme == 'https':
-            port = 443  # HTTPS標準ポート
         else:
-            port = 8080  # Coverity Connect標準ポート
-        
-        # SSL設定の判定
-        use_ssl = parsed_url.scheme == 'https'
+            port = int(os.getenv('COVERITY_PORT', '').strip() or (443 if parsed_url.scheme == 'https' else 8080))
+
+        # SSL設定の判定（環境変数 COVERITY_SSL が優先。なければ URL scheme）
+        ssl_env = os.getenv('COVERITY_SSL', '').strip().lower()
+        use_ssl = ssl_env in ('1', 'true', 'yes', 'on') if ssl_env else parsed_url.scheme == 'https'
         
         logger.info(f"Parsed configuration:")
         logger.info(f"  Host: {host}")
