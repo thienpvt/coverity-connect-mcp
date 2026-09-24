@@ -6,4 +6,8 @@ HOST = os.getenv("MCP_HOST", "0.0.0.0")
 PORT = int(os.getenv("MCP_PORT", "8000"))
 
 if __name__ == "__main__":
-    create_server().run(transport="streamable-http", host=HOST, port=PORT)
+    mcp = create_server()
+    # mcp 1.x: host/port are FastMCP settings, not run() kwargs.
+    mcp.settings.host = HOST
+    mcp.settings.port = PORT
+    mcp.run(transport="streamable-http")
