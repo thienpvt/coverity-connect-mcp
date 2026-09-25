@@ -359,33 +359,39 @@ def create_server() -> FastMCP:
             
             # Get streams for this project
             streams = await client.get_streams(project_id=project_id)
-            
+            if not streams and project.get('streams'):
+                streams = project.get('streams')
+
             # Get defect summary for each stream
             stream_summaries = []
             for stream in streams or []:
                 stream_id = stream.get('name', '')
-                defects = await client.get_defects(stream_id=stream_id, limit=1000)
-                
+                try:
+                    defects = await client.get_defects(stream_id=stream_id, limit=1000)
+                except Exception as de:
+                    logger.warning(f"Could not fetch defects for stream {stream_id}: {de}")
+                    defects = []
+
                 # Count defects by severity
                 severity_counts = {'High': 0, 'Medium': 0, 'Low': 0}
                 status_counts = {}
-                
+
                 for defect in defects or []:
                     severity = defect.get('displayImpact', 'Unknown')
                     status = defect.get('displayStatus', 'Unknown')
-                    
+
                     if severity in severity_counts:
                         severity_counts[severity] += 1
-                    
+
                     status_counts[status] = status_counts.get(status, 0) + 1
-                
+
                 stream_summaries.append({
                     'stream_name': stream_id,
                     'total_defects': len(defects or []),
                     'severity_breakdown': severity_counts,
                     'status_breakdown': status_counts
                 })
-            
+
             return {
                 'project': project,
                 'streams': stream_summaries,
