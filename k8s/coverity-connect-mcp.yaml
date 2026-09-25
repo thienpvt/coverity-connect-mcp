@@ -26,6 +26,10 @@ spec:
       labels:
         app: coverity-connect-mcp
     spec:
+      hostAliases:
+        - ip: "10.8.3.36"
+          hostnames:
+            - "coverity.shb.com.vn"
       # Image pushed by .github/workflows/build-image.yml on push to main.
       # Package is public on ghcr.io (no imagePullSecrets required).
       containers:

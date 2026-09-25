@@ -94,8 +94,8 @@ class CoverityClient:
             # Create auth header
             auth = aiohttp.BasicAuth(self.username, self.password)
             
-            # Create session with timeout
-            timeout = aiohttp.ClientTimeout(total=30)
+            # Create session with timeout (fetching all projects/defects can take ~60s)
+            timeout = aiohttp.ClientTimeout(total=180, connect=30, sock_read=120)
             
             # Configure proxy if available
             proxy = None
@@ -195,52 +195,19 @@ class CoverityClient:
     async def get_projects(self) -> List[Dict[str, Any]]:
         """
         Get list of projects
-        
+
         Returns:
             List of project dictionaries
         """
-        try:
-            response = await self._make_request('GET', '/api/v2/projects')
-            
-            # Handle different response formats
-            if isinstance(response, dict):
-                if 'projects' in response:
-                    return response['projects']
-                elif 'viewContentsV1' in response:
-                    return response['viewContentsV1'].get('projects', [])
-                else:
-                    # Dummy data for testing
-                    return [
-                        {
-                            'projectKey': 'test-project-1',
-                            'projectName': 'Test Project 1',
-                            'description': 'First test project',
-                            'createdDate': '2024-01-01T00:00:00Z',
-                            'lastModified': '2024-01-15T10:30:00Z'
-                        },
-                        {
-                            'projectKey': 'test-project-2', 
-                            'projectName': 'Test Project 2',
-                            'description': 'Second test project',
-                            'createdDate': '2024-01-10T00:00:00Z',
-                            'lastModified': '2024-01-20T15:45:00Z'
-                        }
-                    ]
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"Failed to get projects: {e}")
-            # Return dummy data for testing
-            return [
-                {
-                    'projectKey': 'dummy-project',
-                    'projectName': 'Dummy Project',
-                    'description': 'Test project for development',
-                    'createdDate': '2024-01-01T00:00:00Z',
-                    'lastModified': '2024-01-01T00:00:00Z'
-                }
-            ]
+        response = await self._make_request('GET', '/api/v2/projects')
+
+        if isinstance(response, dict):
+            if 'projects' in response:
+                return response['projects']
+            elif 'viewContentsV1' in response:
+                return response['viewContentsV1'].get('projects', [])
+
+        return []
     
     async def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -268,183 +235,78 @@ class CoverityClient:
     async def get_streams(self, project_id: str = "") -> List[Dict[str, Any]]:
         """
         Get list of streams, optionally filtered by project
-        
+
         Args:
             project_id: Optional project ID to filter by
-            
+
         Returns:
             List of stream dictionaries
         """
-        try:
-            endpoint = '/api/v2/streams'
-            params = {}
-            if project_id:
-                params['projectId'] = project_id
-            
-            response = await self._make_request('GET', endpoint, params=params)
-            
-            # Handle different response formats
-            if isinstance(response, dict):
-                if 'streams' in response:
-                    return response['streams']
-                elif 'viewContentsV1' in response:
-                    return response['viewContentsV1'].get('streams', [])
-                else:
-                    # Dummy data for testing
-                    return [
-                        {
-                            'name': 'main-stream',
-                            'description': 'Main development stream',
-                            'projectId': project_id or 'test-project-1',
-                            'language': 'MIXED'
-                        },
-                        {
-                            'name': 'feature-stream',
-                            'description': 'Feature development stream',  
-                            'projectId': project_id or 'test-project-1',
-                            'language': 'MIXED'
-                        }
-                    ]
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"Failed to get streams: {e}")
-            # Return dummy data
-            return [
-                {
-                    'name': 'dummy-stream',
-                    'description': 'Test stream for development',
-                    'projectId': project_id or 'dummy-project',
-                    'language': 'MIXED'
-                }
-            ]
+        endpoint = '/api/v2/streams'
+        params = {}
+        if project_id:
+            params['projectId'] = project_id
+
+        response = await self._make_request('GET', endpoint, params=params)
+
+        if isinstance(response, dict):
+            if 'streams' in response:
+                return response['streams']
+            elif 'viewContentsV1' in response:
+                return response['viewContentsV1'].get('streams', [])
+
+        return []
     
-    async def get_defects(self, stream_id: str = "", query: str = "", 
-                         filters: Dict[str, str] = None, 
+    async def get_defects(self, stream_id: str = "", query: str = "",
+                         filters: Dict[str, str] = None,
                          limit: int = 100) -> List[Dict[str, Any]]:
         """
         Get defects from Coverity Connect
-        
+
         Args:
             stream_id: Stream identifier to filter by
             query: Search query
             filters: Additional filters (checker, severity, status, etc.)
             limit: Maximum number of results
-            
+
         Returns:
             List of defect dictionaries
         """
-        try:
-            endpoint = '/api/v2/issues/search'
-            params = {'rowCount': limit}
-            
-            if stream_id:
-                params['streamId'] = stream_id
-            if query:
-                params['query'] = query
-                
-            # Add filters
-            if filters:
-                params.update(filters)
-            
-            response = await self._make_request('GET', endpoint, params=params)
-            
-            # Handle different response formats
-            if isinstance(response, dict):
-                if 'issues' in response:
-                    return response['issues']
-                elif 'viewContentsV1' in response:
-                    return response['viewContentsV1'].get('issues', [])
-                else:
-                    # Dummy data for testing
-                    return [
-                        {
-                            'cid': '12345',
-                            'checkerName': 'NULL_RETURNS',
-                            'displayType': 'Null pointer dereference',
-                            'displayImpact': 'High',
-                            'displayStatus': 'New',
-                            'displayFile': 'src/main.c',
-                            'displayFunction': 'main',
-                            'firstDetected': '2024-01-15T10:00:00Z',
-                            'streamId': stream_id or 'main-stream'
-                        },
-                        {
-                            'cid': '12346', 
-                            'checkerName': 'RESOURCE_LEAK',
-                            'displayType': 'Resource leak',
-                            'displayImpact': 'Medium',
-                            'displayStatus': 'Triaged',
-                            'displayFile': 'src/utils.c',
-                            'displayFunction': 'cleanup',
-                            'firstDetected': '2024-01-16T14:30:00Z',
-                            'streamId': stream_id or 'main-stream'
-                        }
-                    ]
-            
-            return []
-            
-        except Exception as e:
-            logger.error(f"Failed to get defects: {e}")
-            # Return dummy data
-            return [
-                {
-                    'cid': 'dummy-123',
-                    'checkerName': 'TEST_CHECKER',
-                    'displayType': 'Test defect',
-                    'displayImpact': 'Low',
-                    'displayStatus': 'New',
-                    'displayFile': 'test.c',
-                    'displayFunction': 'test_function',
-                    'firstDetected': '2024-01-01T00:00:00Z',
-                    'streamId': stream_id or 'dummy-stream'
-                }
-            ]
+        endpoint = '/api/v2/issues/search'
+        params = {'rowCount': limit}
+
+        if stream_id:
+            params['streamId'] = stream_id
+        if query:
+            params['query'] = query
+
+        # Add filters
+        if filters:
+            params.update(filters)
+
+        response = await self._make_request('GET', endpoint, params=params)
+
+        if isinstance(response, dict):
+            if 'issues' in response:
+                return response['issues']
+            elif 'viewContentsV1' in response:
+                return response['viewContentsV1'].get('issues', [])
+
+        return []
     
     async def get_defect_details(self, cid: str) -> Optional[Dict[str, Any]]:
         """
         Get detailed information about a specific defect
-        
+
         Args:
             cid: Coverity Issue Identifier
-            
+
         Returns:
             Detailed defect information or None if not found
         """
-        try:
-            endpoint = f'/api/viewContents/issues/v1/{cid}'
-            response = await self._make_request('GET', endpoint)
-            
-            if response:
-                return response
-            
-            # Dummy data for testing
-            return {
-                'cid': cid,
-                'checkerName': 'NULL_RETURNS',
-                'displayType': 'Null pointer dereference',
-                'displayImpact': 'High',
-                'displayStatus': 'New',
-                'displayFile': 'src/main.c',
-                'displayFunction': 'main',
-                'firstDetected': '2024-01-15T10:00:00Z',
-                'streamId': 'main-stream',
-                'occurrenceCount': 1,
-                'events': [
-                    {
-                        'eventNumber': 1,
-                        'eventTag': 'assignment',
-                        'eventDescription': 'Null assignment detected',
-                        'fileName': 'src/main.c',
-                        'lineNumber': 42
-                    }
-                ]
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get defect details for {cid}: {e}")
-            return None
+        endpoint = f'/api/viewContents/issues/v1/{cid}'
+        response = await self._make_request('GET', endpoint)
+        return response if response else None
     
     async def get_users(self, disabled: bool = False, include_details: bool = True, 
                        locked: bool = False, limit: int = 200) -> List[Dict[str, Any]]:
@@ -460,158 +322,22 @@ class CoverityClient:
         Returns:
             List of user dictionaries
         """
-        try:
-            params = {
-                'disabled': str(disabled).lower(),
-                'includeDetails': str(include_details).lower(),
-                'locked': str(locked).lower(),
-                'offset': '0',
-                'rowCount': str(limit),
-                'sortColumn': 'name',
-                'sortOrder': 'asc'
-            }
-            
-            response = await self._make_request('GET', '/api/v2/users', params=params)
-            
-            logger.info(f"Users API response type: {type(response)}")
-            logger.info(f"Users API response keys: {response.keys() if isinstance(response, dict) else 'Not a dict'}")
-            
-            if response and 'users' in response:
-                logger.info(f"Found {len(response['users'])} users in response")
-                return response['users']
-            
-            logger.warning("No 'users' key in response, returning dummy data for debugging")
-            logger.debug(f"Full response: {response}")
-            
-            # Dummy data for testing
-            return [
-                {
-                    'name': 'admin',
-                    'email': 'admin@company.com',
-                    'familyName': 'Administrator',
-                    'givenName': 'System',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': True,
-                    'groupNames': ['Administrators', 'Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'administrator',
-                            'scope': 'global',
-                            'username': 'admin'
-                        }
-                    ],
-                    'lastLogin': '2024-07-21T10:00:00Z',
-                    'dateCreated': '2024-01-01T00:00:00Z',
-                    'local': True
-                },
-                {
-                    'name': 'developer1',
-                    'email': 'dev1@company.com',
-                    'familyName': '開発',
-                    'givenName': '太郎',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': False,
-                    'groupNames': ['Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'developer',
-                            'scope': 'global',
-                            'username': 'developer1'
-                        }
-                    ],
-                    'lastLogin': '2024-07-20T15:30:00Z',
-                    'dateCreated': '2024-02-01T00:00:00Z',
-                    'local': True
-                },
-                {
-                    'name': 'projectowner1',
-                    'email': 'owner1@company.com',
-                    'familyName': 'プロジェクト',
-                    'givenName': '花子',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': False,
-                    'groupNames': ['Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'projectOwner',
-                            'scope': 'project',
-                            'username': 'projectowner1'
-                        }
-                    ],
-                    'lastLogin': '2024-07-19T09:15:00Z',
-                    'dateCreated': '2024-03-01T00:00:00Z',
-                    'local': True
-                }
-            ]
-            
-        except Exception as e:
-            logger.error(f"Failed to get users: {e}")
-            # Return dummy data for testing (consistent with other methods)
-            return [
-                {
-                    'name': 'admin',
-                    'email': 'admin@company.com',
-                    'familyName': 'Administrator',
-                    'givenName': 'System',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': True,
-                    'groupNames': ['Administrators', 'Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'administrator',
-                            'scope': 'global',
-                            'username': 'admin'
-                        }
-                    ],
-                    'lastLogin': '2024-07-21T10:00:00Z',
-                    'dateCreated': '2024-01-01T00:00:00Z',
-                    'local': True
-                },
-                {
-                    'name': 'developer1',
-                    'email': 'dev1@company.com',
-                    'familyName': '開発',
-                    'givenName': '太郎',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': False,
-                    'groupNames': ['Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'developer',
-                            'scope': 'global',
-                            'username': 'developer1'
-                        }
-                    ],
-                    'lastLogin': '2024-07-20T15:30:00Z',
-                    'dateCreated': '2024-02-01T00:00:00Z',
-                    'local': True
-                },
-                {
-                    'name': 'projectowner1',
-                    'email': 'owner1@company.com',
-                    'familyName': 'プロジェクト',
-                    'givenName': '花子',
-                    'disabled': False,
-                    'locked': False,
-                    'superUser': False,
-                    'groupNames': ['Users'],
-                    'roleAssignments': [
-                        {
-                            'roleName': 'projectOwner',
-                            'scope': 'project',
-                            'username': 'projectowner1'
-                        }
-                    ],
-                    'lastLogin': '2024-07-19T09:15:00Z',
-                    'dateCreated': '2024-03-01T00:00:00Z',
-                    'local': True
-                }
-            ]
+        params = {
+            'disabled': str(disabled).lower(),
+            'includeDetails': str(include_details).lower(),
+            'locked': str(locked).lower(),
+            'offset': '0',
+            'rowCount': str(limit),
+            'sortColumn': 'name',
+            'sortOrder': 'asc'
+        }
+
+        response = await self._make_request('GET', '/api/v2/users', params=params)
+
+        if response and 'users' in response:
+            return response['users']
+
+        return []
     
     async def get_user_details(self, username: str) -> Optional[Dict[str, Any]]:
         """
