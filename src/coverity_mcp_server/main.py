@@ -510,6 +510,22 @@ def create_server() -> FastMCP:
             logger.error(f"Error getting user roles: {e}")
             return {"error": str(e)}
 
+    @mcp.tool()
+    async def get_view_contents(view_id: str, project_id: str,
+                                row_count: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """Get a page of issues from a project view; use totalRows and offset to fetch later pages."""
+        return await initialize_client().get_view_contents(view_id, project_id, row_count, offset)
+
+    @mcp.tool()
+    async def get_defect_occurrences(cid: str) -> Any:
+        """Get the event trace and occurrences for a Coverity issue CID."""
+        return await initialize_client().get_defect_occurrences(cid)
+
+    @mcp.tool()
+    async def coverity_api_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """GET a safe /api/ path on the configured Coverity server."""
+        return await initialize_client().coverity_api_get(path, params)
+
     return mcp
 
 def run_server():

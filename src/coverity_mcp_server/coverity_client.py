@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from typing import List, Dict, Any, Optional
-from urllib.parse import urljoin
+from urllib.parse import quote, unquote, urljoin, urlsplit
 import ssl
 
 logger = logging.getLogger(__name__)
@@ -274,27 +274,56 @@ class CoverityClient:
         Returns:
             List of defect dictionaries
         """
-        endpoint = '/api/v2/issues/search'
-        params = {'rowCount': limit}
-
+        body = {'filters': [], 'query': query, 'rowCount': limit, 'offset': 0}
         if stream_id:
-            params['streamId'] = stream_id
-        if query:
-            params['query'] = query
+            body['filters'].append({
+                'columnKey': 'stream', 'matchMode': 'oneOrMoreMatch',
+                'matchers': [{'class': 'Stream', 'name': stream_id, 'type': 'nameMatcher'}]
+            })
+        for name, value in (filters or {}).items():
+            column = {'checker': 'checker', 'severity': 'displayImpact',
+                      'status': 'displayStatus', 'streamId': 'stream'}.get(name, name)
+            matcher = ({'class': 'Stream', 'name': value, 'type': 'nameMatcher'}
+                       if column == 'stream' else {'key': value, 'type': 'keyMatcher'})
+            body['filters'].append({
+                'columnKey': column, 'matchMode': 'oneOrMoreMatch', 'matchers': [matcher]
+            })
 
-        # Add filters
-        if filters:
-            params.update(filters)
-
-        response = await self._make_request('GET', endpoint, params=params)
-
+        response = await self._make_request('POST', '/api/v2/issues/search', data=body)
         if isinstance(response, dict):
+            if 'rows' in response:
+                return [{cell['key']: cell.get('value') for cell in row} if isinstance(row, list)
+                        else row for row in response['rows']]
             if 'issues' in response:
                 return response['issues']
             elif 'viewContentsV1' in response:
                 return response['viewContentsV1'].get('issues', [])
 
         return []
+
+    async def get_view_contents(self, view_id: str, project_id: str,
+                                row_count: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """Get one page of a project's view, preserving rows and pagination metadata."""
+        if not 1 <= row_count <= 1000 or offset < 0:
+            raise ValueError('row_count must be 1..1000 and offset must be nonnegative')
+        return await self._make_request(
+            'GET', f'/api/v2/views/viewContents/{quote(str(view_id), safe="")}',
+            params={'projectId': project_id, 'rowCount': row_count, 'offset': offset}
+        )
+
+    async def get_defect_occurrences(self, cid: str) -> Any:
+        """Get event trace for a Coverity issue."""
+        return await self._make_request('GET', f'/api/v2/issues/{quote(str(cid), safe="")}/occurrences')
+
+    async def coverity_api_get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """Read a Coverity API path on the configured server."""
+        parsed = urlsplit(path)
+        segments = unquote(parsed.path).split('/')
+        if (not path.startswith('/api/') or parsed.scheme or parsed.netloc or
+                '?' in path or '#' in path or '\\' in path or
+                any(segment in ('.', '..', '') for segment in segments[2:])):
+            raise ValueError('path must be a safe /api/ path without query or fragment')
+        return await self._make_request('GET', path, params=params)
     
     async def get_defect_details(self, cid: str) -> Optional[Dict[str, Any]]:
         """

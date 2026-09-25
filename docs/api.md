@@ -8,7 +8,7 @@ This document provides comprehensive API documentation for the Coverity Connect 
 
 The Coverity Connect MCP Server implements the Model Context Protocol (MCP) specification and provides the following capabilities:
 
-- **Tools**: 5 available tools for Coverity operations
+- **Tools**: 11 available tools for Coverity operations
 - **Resources**: 2 available resources for configuration and data access
 - **Prompts**: Built-in prompts for common workflows
 
@@ -74,6 +74,35 @@ Find all high-severity NULL_RETURNS defects that are still New
 ```
 Show me all memory leaks in the user authentication module that haven't been fixed
 ```
+
+`search_defects` sends `POST /api/v2/issues/search` with JSON `filters`, `query`, `rowCount`, and `offset=0`. Search results are converted from Coverity `rows` (key/value cells) to issue dictionaries. Use `get_view_contents` to page through every issue in a saved view.
+
+### get_view_contents
+
+Fetch one page matching `/#/project-view/{projectId}/{viewId}` via `GET /api/v2/views/viewContents/{viewId}`.
+
+```python
+async def get_view_contents(view_id: str, project_id: str,
+                            row_count: int = 100, offset: int = 0) -> Dict[str, Any]
+```
+
+`view_id` and `project_id` are required. `row_count` must be 1–1000; `offset` must be nonnegative. Response is Coverity's unmodified JSON, including `rows`, `offset`, `totalRows`, and `columns`. Rows may be arrays of `{ "key": ..., "value": ... }` cells. To retrieve all pages, increment `offset` by `row_count` until it reaches `totalRows` (or no rows remain). Example: `get_view_contents(view_id="77", project_id="10380", row_count=100, offset=0)`.
+
+### get_defect_occurrences
+
+```python
+async def get_defect_occurrences(cid: str) -> Any
+```
+
+Reads `GET /api/v2/issues/{cid}/occurrences`, returning Coverity's unmodified event/occurrence response. Example: `get_defect_occurrences(cid="12345")`.
+
+### coverity_api_get
+
+```python
+async def coverity_api_get(path: str, params: Optional[Dict[str, Any]] = None) -> Any
+```
+
+Reads an API endpoint on the configured Coverity host. `path` must start with `/api/` and cannot contain traversal segments, a query string, or a fragment. Supply query values in `params`, e.g. `coverity_api_get(path="/api/v2/projects", params={"rowCount": 10})`.
 
 ### 2. get_defect_details
 
