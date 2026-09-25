@@ -212,22 +212,24 @@ class CoverityClient:
     async def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
         """
         Get specific project details
-        
+
         Args:
-            project_id: Project identifier
-            
+            project_id: Project identifier (name or projectKey)
+
         Returns:
             Project dictionary or None if not found
         """
         try:
             projects = await self.get_projects()
+            pid_str = str(project_id).strip()
             for project in projects:
-                if (project.get('projectKey') == project_id or 
-                    project.get('projectName') == project_id):
+                if (str(project.get('projectKey')) == pid_str or
+                    project.get('name') == pid_str or
+                    project.get('projectName') == pid_str):
                     return project
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get project {project_id}: {e}")
             return None
